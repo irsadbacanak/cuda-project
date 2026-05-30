@@ -1,0 +1,17 @@
+# Build outputs
+Project1-CUDA/build/
+Project2-RemoteDesktop/bin/
+Project2-RemoteDesktop/obj/
+
+# Visual Studio
+.vs/
+
+# Compiled binaries and objects
+*.exe
+*.dll
+*.obj
+*.o
+
+# OS files
+.DS_Store
+Thumbs.db
