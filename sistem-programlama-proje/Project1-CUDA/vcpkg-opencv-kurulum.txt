@@ -1,0 +1,111 @@
+vcpkg ile OpenCV Kurulumu (Windows) - CUDA Projesi için
+==========================================================
+
+ADIM 1: vcpkg'yi Kur
+---------------------
+PowerShell'i yonetici olarak ac ve calistir:
+
+  git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+  cd C:\vcpkg
+  .\bootstrap-vcpkg.bat
+
+
+ADIM 2: vcpkg'yi Sisteme Entegre Et
+-------------------------------------
+  .\vcpkg.exe integrate install
+
+Bu komut Visual Studio ve MSBuild'e otomatik entegrasyon saglar.
+
+
+ADIM 3: OpenCV'yi Kur
+-----------------------
+CUDA destegi OLMADAN (daha hizli):
+  .\vcpkg.exe install opencv4:x64-windows
+
+CUDA destegi ILE (uzun surer, ~1-2 saat):
+  .\vcpkg.exe install opencv4[cuda]:x64-windows
+
+NOT: Kurulum bitince vcpkg CMake toolchain dosyasinin yolunu gosterir, kaydet.
+
+
+ADIM 4: CMakeLists.txt
+------------------------
+Project1-CUDA/CMakeLists.txt icerigi:
+
+  cmake_minimum_required(VERSION 3.20)
+  project(CudaProject CUDA CXX)
+
+  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CUDA_STANDARD 17)
+
+  find_package(CUDAToolkit REQUIRED)
+  find_package(OpenCV REQUIRED)
+
+  add_executable(main
+      src/main.cu
+  )
+
+  target_link_libraries(main
+      PRIVATE
+      CUDA::cudart
+      ${OpenCV_LIBS}
+  )
+
+  target_include_directories(main
+      PRIVATE
+      ${OpenCV_INCLUDE_DIRS}
+  )
+
+
+ADIM 5: CMake ile Build Et
+----------------------------
+  cd Project1-CUDA
+  mkdir build
+  cd build
+
+  cmake .. `
+    -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
+    -DVCPKG_TARGET_TRIPLET=x64-windows `
+    -G "Visual Studio 17 2022" `
+    -A x64
+
+  cmake --build . --config Release
+
+
+ADIM 6: CMakePresets.json (Opsiyonel ama Onerilen)
+----------------------------------------------------
+Project1-CUDA/CMakePresets.json icerigi:
+
+  {
+    "version": 3,
+    "configurePresets": [
+      {
+        "name": "default",
+        "generator": "Visual Studio 17 2022",
+        "architecture": "x64",
+        "cacheVariables": {
+          "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
+          "VCPKG_TARGET_TRIPLET": "x64-windows"
+        }
+      }
+    ]
+  }
+
+Bu dosya varken sadece su komutlari calistirman yeter:
+  cmake --preset default
+  cmake --build build --config Release
+
+
+OZET AKIS
+----------
+  vcpkg clone --> bootstrap --> integrate install
+      |
+  vcpkg install opencv4:x64-windows
+      |
+  CMakeLists.txt'de find_package(OpenCV REQUIRED)
+      |
+  cmake -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/... ile build
+
+
+NOT: CUDA 13.3 kurulu oldugu dogrulandi (nvcc --version ile).
+     cmake kurulu degilse: winget install Kitware.CMake
