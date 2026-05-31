@@ -1,7 +1,7 @@
 # Build outputs
 Project1-CUDA/build/
-Project2-RemoteDesktop/bin/
-Project2-RemoteDesktop/obj/
+Project2-RemoteDesktop/**/bin/
+Project2-RemoteDesktop/**/obj/
 
 # Visual Studio
 .vs/
