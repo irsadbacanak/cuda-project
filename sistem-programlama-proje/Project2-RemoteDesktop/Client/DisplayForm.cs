@@ -4,63 +4,110 @@ using System.Windows.Forms;
 public class DisplayForm : Form
 {
     private readonly TextBox    _txtIp;
-    private readonly TextBox    _txtPort;
     private readonly Button     _btnConnect;
-    private readonly PictureBox _pictureBox;
     private readonly Label      _lblFps;
-    private readonly CheckBox   _chkCuda;
+    private readonly PictureBox _pbRaw;
+    private readonly PictureBox _pbSobel;
 
-    private readonly ConnectionManager _connection = new();
+    private readonly ConnectionManager _rawConn   = new();
+    private readonly ConnectionManager _sobelConn = new();
+
     private int      _frameCount;
     private DateTime _fpsTimer = DateTime.Now;
     private bool     _connected;
 
     public DisplayForm()
     {
-        Text        = "Uzak Masaustu Istemcisi";
-        Size        = new Size(1280, 820);
-        MinimumSize = new Size(800, 600);
+        Text        = "Uzak Masaustu - Ham vs CUDA Sobel";
+        Size        = new Size(1400, 620);
+        MinimumSize = new Size(900, 500);
 
         // --- Üst panel ---
         var panel = new Panel { Dock = DockStyle.Top, Height = 44 };
 
-        var lblIp   = new Label  { Text = "IP:",   Left = 8,   Top = 14, AutoSize = true };
-        _txtIp      = new TextBox { Text = "127.0.0.1", Left = 30,  Top = 10, Width = 110 };
-        var lblPort = new Label  { Text = "Port:", Left = 148, Top = 14, AutoSize = true };
-        _txtPort    = new TextBox { Text = "8888", Left = 185, Top = 10, Width = 55 };
-        _btnConnect = new Button  { Text = "Baglan", Left = 250, Top = 8, Width = 90 };
-        _chkCuda    = new CheckBox { Text = "CUDA Modu (port 9999)", Left = 350, Top = 12, AutoSize = true };
-        _lblFps     = new Label  { Text = "FPS: --", Left = 570, Top = 14, AutoSize = true,
-                                   Font = new Font("Segoe UI", 10, FontStyle.Bold) };
+        var lblIp   = new Label { Text = "IP:", Left = 8,  Top = 14, AutoSize = true };
+        _txtIp      = new TextBox { Text = "127.0.0.1", Left = 28, Top = 10, Width = 120 };
+        _btnConnect = new Button  { Text = "Baglan", Left = 158, Top = 8, Width = 90 };
+        _lblFps     = new Label   { Text = "FPS: --", Left = 260, Top = 14, AutoSize = true,
+                                    Font = new Font("Segoe UI", 10, FontStyle.Bold) };
 
-        panel.Controls.AddRange(new Control[] { lblIp, _txtIp, lblPort, _txtPort,
-                                                _btnConnect, _chkCuda, _lblFps });
+        var lblInfo = new Label
+        {
+            Text      = "Sol: Ham Görüntü (port 9998)   |   Sağ: CUDA Sobel (port 9999)",
+            Left      = 380, Top = 14, AutoSize = true,
+            ForeColor = Color.DimGray
+        };
 
-        // --- PictureBox ---
-        _pictureBox = new PictureBox
+        panel.Controls.AddRange(new Control[] { lblIp, _txtIp, _btnConnect, _lblFps, lblInfo });
+
+        // --- İki panel yan yana ---
+        var table = new TableLayoutPanel
+        {
+            Dock        = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount    = 2
+        };
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        table.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        table.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var lblRaw = new Label
+        {
+            Text      = "Ham Görüntü",
+            Dock      = DockStyle.Fill,
+            TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
+            Font      = new Font("Segoe UI", 9, FontStyle.Bold),
+            BackColor = Color.FromArgb(40, 40, 40),
+            ForeColor = Color.White
+        };
+        var lblSobel = new Label
+        {
+            Text      = "CUDA Sobel",
+            Dock      = DockStyle.Fill,
+            TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
+            Font      = new Font("Segoe UI", 9, FontStyle.Bold),
+            BackColor = Color.FromArgb(20, 60, 100),
+            ForeColor = Color.White
+        };
+
+        _pbRaw = new PictureBox
+        {
+            Dock      = DockStyle.Fill,
+            SizeMode  = PictureBoxSizeMode.Zoom,
+            BackColor = Color.Black
+        };
+        _pbSobel = new PictureBox
         {
             Dock      = DockStyle.Fill,
             SizeMode  = PictureBoxSizeMode.Zoom,
             BackColor = Color.Black
         };
 
-        Controls.Add(_pictureBox);
+        table.Controls.Add(lblRaw,   0, 0);
+        table.Controls.Add(lblSobel, 1, 0);
+        table.Controls.Add(_pbRaw,   0, 1);
+        table.Controls.Add(_pbSobel, 1, 1);
+
+        Controls.Add(table);
         Controls.Add(panel);
 
         // --- Olaylar ---
-        _chkCuda.CheckedChanged += (_, _) => _txtPort.Text = _chkCuda.Checked ? "9999" : "8888";
-        _btnConnect.Click       += OnConnectClick;
-        FormClosing             += (_, _) => _connection.Disconnect();
+        _btnConnect.Click += OnConnectClick;
+        FormClosing       += (_, _) => { _rawConn.Disconnect(); _sobelConn.Disconnect(); };
 
-        _connection.FrameReceived += OnFrameReceived;
-        _connection.Disconnected  += OnDisconnected;
+        _rawConn.FrameReceived   += jpeg => OnFrameReceived(jpeg, _pbRaw,   updateFps: false);
+        _sobelConn.FrameReceived += jpeg => OnFrameReceived(jpeg, _pbSobel, updateFps: true);
+        _rawConn.Disconnected    += OnDisconnected;
+        _sobelConn.Disconnected  += OnDisconnected;
     }
 
     private void OnConnectClick(object? sender, EventArgs e)
     {
         if (_connected)
         {
-            _connection.Disconnect();
+            _rawConn.Disconnect();
+            _sobelConn.Disconnect();
             _btnConnect.Text = "Baglan";
             _connected = false;
             return;
@@ -68,7 +115,9 @@ public class DisplayForm : Form
 
         try
         {
-            _connection.Connect(_txtIp.Text.Trim(), int.Parse(_txtPort.Text.Trim()));
+            string ip = _txtIp.Text.Trim();
+            _rawConn.Connect(ip, 9998);
+            _sobelConn.Connect(ip, 9999);
             _btnConnect.Text = "Baglantıyı Kes";
             _connected = true;
         }
@@ -79,7 +128,7 @@ public class DisplayForm : Form
         }
     }
 
-    private void OnFrameReceived(byte[] jpeg)
+    private void OnFrameReceived(byte[] jpeg, PictureBox pb, bool updateFps)
     {
         try
         {
@@ -87,22 +136,25 @@ public class DisplayForm : Form
             using (var ms = new MemoryStream(jpeg))
                 img = Image.FromStream(ms);
 
-            _frameCount++;
-            double elapsed = (DateTime.Now - _fpsTimer).TotalSeconds;
             string? fpsText = null;
-            if (elapsed >= 1.0)
+            if (updateFps)
             {
-                fpsText     = $"FPS: {_frameCount / elapsed:F1}";
-                _frameCount = 0;
-                _fpsTimer   = DateTime.Now;
+                _frameCount++;
+                double elapsed = (DateTime.Now - _fpsTimer).TotalSeconds;
+                if (elapsed >= 1.0)
+                {
+                    fpsText     = $"FPS: {_frameCount / elapsed:F1}";
+                    _frameCount = 0;
+                    _fpsTimer   = DateTime.Now;
+                }
             }
 
             if (!IsHandleCreated || IsDisposed) { img.Dispose(); return; }
 
             Invoke(() =>
             {
-                _pictureBox.Image?.Dispose();
-                _pictureBox.Image = img;
+                pb.Image?.Dispose();
+                pb.Image = img;
                 if (fpsText != null) _lblFps.Text = fpsText;
             });
         }
