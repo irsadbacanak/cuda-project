@@ -74,13 +74,13 @@ public class DisplayForm : Form
         _pbRaw = new PictureBox
         {
             Dock      = DockStyle.Fill,
-            SizeMode  = PictureBoxSizeMode.Zoom,
+            SizeMode  = PictureBoxSizeMode.StretchImage,
             BackColor = Color.Black
         };
         _pbSobel = new PictureBox
         {
             Dock      = DockStyle.Fill,
-            SizeMode  = PictureBoxSizeMode.Zoom,
+            SizeMode  = PictureBoxSizeMode.StretchImage,
             BackColor = Color.Black
         };
 
