@@ -21,6 +21,7 @@ public class DisplayForm : Form
         Text        = "Uzak Masaustu - Ham vs CUDA Sobel";
         Size        = new Size(1400, 620);
         MinimumSize = new Size(900, 500);
+        WindowState = FormWindowState.Maximized;
 
         // --- Üst panel ---
         var panel = new Panel { Dock = DockStyle.Top, Height = 44 };
